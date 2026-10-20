@@ -1,0 +1,480 @@
+AZURE SECURITY SCANNER LITE
+USER AND BACKEND MANUAL
+========================
+
+1. WHAT THIS PROJECT DOES
+-------------------------
+Azure Security Scanner Lite is a read-only Azure security assessment tool.
+It connects to an Azure subscription through the Azure CLI, discovers selected
+resources, checks common security settings, calculates a project-specific
+security score, and creates JSON and HTML reports.
+
+The project scans only:
+
+- Azure Storage Accounts
+- Azure Key Vaults
+- Azure Network Security Groups (NSGs)
+
+The tool does not modify Azure resources. It does not create or delete
+resources, retrieve storage keys, retrieve Key Vault secrets, print tokens,
+remediate findings, or attempt exploitation.
+
+There is no web server, database, frontend framework, or separate backend
+service. The backend is the Python code that calls the Azure management APIs
+and processes the returned configuration objects.
+
+
+2. REQUIREMENTS
+---------------
+
+- Python 3.11 or newer
+- Azure CLI
+- An Azure subscription
+- Reader permission at subscription or resource-group scope
+- Internet access while installing Python packages and calling Azure APIs
+
+Python packages are listed in requirements.txt:
+
+- azure-identity: Azure CLI authentication
+- azure-mgmt-subscription: subscription lookup
+- azure-mgmt-storage: Storage Account management API client
+- azure-mgmt-keyvault: Key Vault management API client
+- azure-mgmt-network: NSG management API client
+- azure-mgmt-resource: Azure resource management dependency
+- rich: formatted terminal output
+- jinja2: HTML report generation
+
+
+3. INSTALLATION
+---------------
+Open PowerShell or a terminal in the project folder.
+
+Create a virtual environment:
+
+    python -m venv .venv
+
+Windows activation:
+
+    .venv\Scripts\activate
+
+Linux or macOS activation:
+
+    source .venv/bin/activate
+
+Install the dependencies:
+
+    pip install -r requirements.txt
+
+Install Azure CLI separately if it is not installed on the computer.
+
+
+4. LOGIN AND RUNNING THE PROGRAM
+---------------------------------
+First sign in to Azure:
+
+    az login
+
+The browser-based Azure login selects an Azure account. The application then
+uses AzureCliCredential from azure.identity to use that existing CLI session.
+
+Scan the active or first accessible subscription:
+
+    python main.py
+
+The default scope is the whole subscription. The explicit equivalent is:
+
+    python main.py --scope subscription
+
+Scan one resource group:
+
+    python main.py --resource-group rg-security-demo
+
+Select a subscription ID explicitly:
+
+    python main.py --subscription-id <subscription-id>
+
+Options can be combined:
+
+    python main.py --subscription-id <subscription-id> --resource-group rg-security-demo
+
+The program prints discovered counts, findings, the security score, and the
+locations of the generated reports.
+
+
+5. COMPLETE BACKEND FLOW
+------------------------
+The runtime flow is:
+
+    Command line arguments
+            |
+            v
+    Azure CLI authentication
+            |
+            v
+    Subscription selection
+            |
+            v
+    Resource discovery
+            |
+            v
+    Storage, Key Vault, and NSG scanners
+            |
+            v
+    Combined Finding objects
+            |
+            v
+    Security score calculation
+            |
+            v
+    JSON and HTML report generation
+
+The exact coordinator is the main() function in main.py.
+
+Step 1: parse_args() reads --scope, --resource-group, and --subscription-id.
+Step 2: AzureAuthenticator obtains a credential and subscription details.
+Step 3: ResourceDiscovery lists the supported Azure resources.
+Step 4: Each scanner examines its own resource type.
+Step 5: All scanner results are combined into one list of Finding objects.
+Step 6: SecurityScoringEngine calculates the score and risk level.
+Step 7: ReportGenerator writes findings.json and report.html.
+
+
+6. FILE-BY-FILE GUIDE
+---------------------
+
+main.py
+--------
+This is the executable entry point and workflow coordinator.
+
+Functions:
+
+- parse_args()
+  Defines and reads the command-line arguments.
+
+- run_scanner(label, scanner)
+  Runs one scanner inside an exception handler. If one service scanner fails,
+  the error is printed and the other scanners can continue.
+
+- main()
+  Performs the complete application workflow: authentication, discovery,
+  scanning, scoring, terminal output, and report creation.
+
+- if __name__ == "__main__"
+  Calls main() when the file is run with python main.py.
+
+The rich Console, Panel, and Table classes are used only to make terminal
+output easier to read.
+
+
+auth.py
+--------
+This module handles Azure CLI authentication and subscription selection.
+
+Class: AzureAuthenticator
+
+- __init__(subscription_id=None)
+  Stores an optional subscription ID supplied by the user.
+
+- get_credential()
+  Creates AzureCliCredential and requests a management-plane token. The token
+  is only used internally to verify login; it is never printed or returned in
+  a report.
+
+- get_subscription()
+  Uses SubscriptionClient to list accessible subscriptions. If the user
+  supplied --subscription-id, only that subscription is accepted. It returns
+  subscription_id and subscription_name.
+
+Common failures handled here include a missing Azure CLI, no az login session,
+invalid subscription selection, and insufficient subscription access.
+
+
+discovery.py
+------------
+This module creates Azure management clients and discovers resources.
+
+Class: ResourceDiscovery
+
+- __init__(credential, subscription_id)
+  Creates StorageManagementClient, KeyVaultManagementClient, and
+  NetworkManagementClient instances.
+
+- _resource_group(resource)
+  Extracts the resource group name from an Azure resource ID using a regular
+  expression. It returns "unknown" when an ID does not contain a group.
+
+- discover(resource_group=None)
+  Lists Storage Accounts, Key Vaults, and NSGs. With a resource group it uses
+  the resource-group list operations. Without one it lists across the
+  subscription. It returns a dictionary with storage, keyvault, and network
+  lists.
+
+- resource_group(resource)
+  Public class method used by scanners to get a consistent resource-group
+  value.
+
+This module only reads management-plane resource metadata.
+
+
+models.py
+---------
+This module defines the common data structure used throughout the project.
+
+Class: Finding
+
+Each finding stores:
+
+- check_id: for example STG-001 or NSG-001
+- service: Storage, Key Vault, or Network Security Group
+- resource_name
+- resource_group
+- severity: CRITICAL, HIGH, MEDIUM, LOW, or INFO
+- title
+- description
+- current_value
+- recommended_value
+- recommendation
+- status: PASS or FAIL
+
+Method:
+
+- to_dict()
+  Converts the dataclass into a normal dictionary for JSON serialization.
+
+
+scanners/storage.py
+-------------------
+Class: StorageSecurityScanner
+
+- __init__(resources)
+  Receives the Storage Account objects returned by discovery.
+
+- scan()
+  Runs the Storage checks and returns a list of Finding objects.
+
+Checks:
+
+- STG-001 checks allow_blob_public_access. True is HIGH and FAIL.
+- STG-002 checks minimum_tls_version. TLS1_0 and TLS1_1 are HIGH and FAIL.
+  TLS1_2 and TLS1_3 pass. Enum and string values are normalized.
+- STG-003 checks enable_https_traffic_only. False is HIGH and FAIL.
+- STG-004 optionally reports enabled public_network_access as INFO and PASS.
+  It is a review item, not automatically a vulnerability.
+
+Helper function:
+
+- value_text(value, default)
+  Converts Azure enum objects and ordinary Python values into comparable text.
+  It also supplies a readable value when an SDK property is missing.
+
+
+scanners/keyvault.py
+--------------------
+Class: KeyVaultSecurityScanner
+
+- __init__(resources)
+  Receives the Key Vault objects returned by discovery.
+
+- scan()
+  Runs the Key Vault checks and returns Finding objects.
+
+Checks:
+
+- KV-001 checks vault.properties.public_network_access. Enabled is MEDIUM and
+  FAIL. Public access alone is not described as guaranteed exploitation.
+- KV-002 checks vault.properties.enable_purge_protection. False or missing is
+  MEDIUM and FAIL.
+
+This scanner does not create a separate soft-delete rule.
+
+
+scanners/network.py
+-------------------
+Class: NetworkSecurityScanner
+
+- __init__(resources)
+  Receives NSG objects returned by discovery.
+
+- scan()
+  Examines custom inbound Allow rules. Outbound rules and Deny rules are
+  ignored. It creates findings for Internet-wide exposure.
+
+Helper functions and constants:
+
+- INTERNET_SOURCES
+  Recognizes *, 0.0.0.0/0, Internet, and ::/0.
+
+- SENSITIVE_PORTS
+  Maps sensitive ports to service names: FTP, Telnet, MSSQL, MySQL,
+  PostgreSQL, Redis, Elasticsearch, and MongoDB.
+
+- rule_values(rule, singular, plural)
+  Supports both Azure SDK property forms, such as
+  source_address_prefix/source_address_prefixes and
+  destination_port_range/destination_port_ranges.
+
+- port_tokens(values)
+  Understands single ports such as 22, ranges such as 22-25, comma-separated
+  ports such as 80,443, and wildcard ports such as *.
+
+Checks:
+
+- NSG-001 reports Internet-wide inbound TCP/any-protocol SSH port 22 as
+  CRITICAL.
+- NSG-002 reports Internet-wide inbound RDP port 3389 as CRITICAL.
+- NSG-003 reports Internet-wide access to the listed sensitive service ports
+  as HIGH and includes the service name.
+- NSG-004 reports an Internet-wide inbound Allow rule for any destination port
+  as CRITICAL.
+
+The parser safely handles missing values, SDK enum values, singular/plural
+properties, and protocol "*".
+
+
+scoring.py
+----------
+Class: SecurityScoringEngine
+
+- PENALTIES
+  Defines the project penalties: CRITICAL 15, HIGH 10, MEDIUM 5, LOW 2, and
+  INFO 0.
+
+- calculate(findings)
+  Starts at 100, subtracts penalties only for failed findings, clamps the
+  result at zero, counts severities and PASS/FAIL values, and assigns a risk
+  level.
+
+Risk levels:
+
+- 90-100: EXCELLENT
+- 75-89: LOW
+- 50-74: MEDIUM
+- 25-49: HIGH
+- 0-24: CRITICAL
+
+This is a project-specific scoring method. It is not Microsoft's official
+Secure Score.
+
+
+reporting.py
+------------
+Class: ReportGenerator
+
+- __init__(output_dir="output")
+  Creates the output directory automatically if needed.
+
+- write_json(subscription_id, subscription_name, resource_group, findings,
+  score, resource_count)
+  Builds the assessment, summary, and findings sections and writes
+  output/findings.json. Finding.to_dict() makes dataclass serialization safe.
+
+- write_html(assessment, summary, findings)
+  Loads templates/report.html with Jinja2 and writes output/report.html.
+
+
+templates/report.html
+---------------------
+This is the Jinja2 HTML template. It contains embedded CSS, so the report does
+not need Node.js, Bootstrap, JavaScript, or an internet connection to display.
+It shows assessment information, score, risk level, resource count, severity
+summary, detailed finding cards, recommendations, and a disclaimer.
+
+
+requirements.txt
+----------------
+Contains the Python dependencies required by the application.
+
+
+README.md
+---------
+Provides a short setup and usage overview for new users.
+
+
+output/
+-------
+The application creates these files after a successful run:
+
+- output/findings.json: machine-readable assessment data
+- output/report.html: human-readable report for a browser
+
+The output directory is created automatically by ReportGenerator.
+
+
+7. UNDERSTANDING THE JSON REPORT
+---------------------------------
+The JSON report has three main sections.
+
+assessment
+Contains subscription ID, subscription name, scan scope, score, and risk
+level.
+
+summary
+Contains resources_scanned, severity counts, passed count, and failed count.
+
+findings
+Contains one object for each Finding returned by the scanners.
+
+Example command to view the JSON in PowerShell:
+
+    Get-Content output\findings.json
+
+Open the HTML report in a browser by opening:
+
+    output\report.html
+
+
+8. TROUBLESHOOTING
+------------------
+
+Azure CLI not installed
+Install Azure CLI, reopen the terminal, run az login, and retry.
+
+Not logged in
+Run:
+
+    az login
+
+No subscription found
+Check the account and subscriptions available to the CLI:
+
+    az account list -o table
+
+Use the correct ID with --subscription-id if necessary.
+
+Permission errors during discovery
+The signed-in identity needs Reader permission on the subscription or on the
+resource group being scanned.
+
+No resources found
+This is valid. The program handles empty Storage Account, Key Vault, or NSG
+lists and still creates reports.
+
+One scanner fails
+The CLI displays the service error and continues with other scanner results.
+
+Report generation fails
+Check that the project directory is writable and that Jinja2 is installed:
+
+    pip install -r requirements.txt
+
+
+9. SAFE DEMONSTRATION CHECKLIST
+--------------------------------
+
+1. Create or select a test resource group such as rg-security-demo.
+2. Ensure the signed-in account has Reader permission.
+3. Run az login.
+4. Run:
+
+       python main.py --resource-group rg-security-demo
+
+5. Show the resource counts and severity findings in the terminal.
+6. Open output/report.html.
+7. Explain that the scanner is read-only and does not automatically fix issues.
+8. Explain that the score is an educational project methodology, not an
+   official Microsoft security score.
+
+The final live command should create or replace:
+
+- output/findings.json
+- output/report.html

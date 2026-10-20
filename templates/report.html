@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Azure Security Assessment Report</title>
+<style>
+:root{font-family:Segoe UI,Arial,sans-serif;color:#17202a;background:#f4f7f9;line-height:1.45}body{max-width:1100px;margin:0 auto;padding:28px}header{background:#12304a;color:white;padding:28px;border-radius:8px}h1{margin:0 0 6px}h2{color:#12304a;margin-top:30px}.score{font-size:34px;font-weight:700;color:#087f5b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}.metric,.finding{background:white;border:1px solid #d9e2e8;border-radius:6px;padding:16px}.metric strong{display:block;font-size:24px}.finding{margin:12px 0;border-left:6px solid #94a3b8}.finding.CRITICAL{border-color:#b42318}.finding.HIGH{border-color:#d97706}.finding.MEDIUM{border-color:#ca8a04}.finding.INFO{border-color:#2563eb}.tag{font-weight:700}.fail{color:#b42318}.pass{color:#087f5b}dt{font-weight:700;color:#52606d;margin-top:8px}dd{margin:0}.disclaimer{font-size:13px;color:#52606d;border-top:1px solid #d9e2e8;padding-top:15px}
+</style></head>
+<body>
+<header><h1>Azure Security Assessment Report</h1><div>{{ assessment.subscription_name }} ({{ assessment.subscription_id }})</div></header>
+<h2>Assessment Information</h2><p><strong>Scope:</strong> {{ assessment.resource_group }}<br><strong>Resources scanned:</strong> {{ summary.resources_scanned }}</p>
+<h2>Security Score</h2><p class="score">{{ assessment.security_score }}/100</p><p>Risk Level: <strong>{{ assessment.risk_level }}</strong></p>
+<h2>Resources Scanned</h2><p>{{ summary.resources_scanned }} supported Azure resources were inspected.</p>
+<h2>Findings Summary</h2><div class="grid">{% for label in ['critical','high','medium','low','info','passed','failed'] %}<div class="metric"><strong>{{ summary[label] }}</strong>{{ label|capitalize }}</div>{% endfor %}</div>
+<h2>Detailed Findings</h2>{% for finding in findings %}<article class="finding {{ finding.severity }}"><div class="tag">{{ finding.severity }} | {{ finding.check_id }} | <span class="{{ finding.status|lower }}">{{ finding.status }}</span></div><h3>{{ finding.title }}</h3><dl><dt>Service</dt><dd>{{ finding.service }}</dd><dt>Resource</dt><dd>{{ finding.resource_name }}</dd><dt>Resource Group</dt><dd>{{ finding.resource_group }}</dd><dt>Finding</dt><dd>{{ finding.description }}</dd><dt>Current Configuration</dt><dd>{{ finding.current_value }}</dd><dt>Recommended Configuration</dt><dd>{{ finding.recommended_value }}</dd><dt>Recommendation</dt><dd>{{ finding.recommendation }}</dd></dl></article>{% else %}<p>No findings were returned.</p>{% endfor %}
+<h2>Recommendations</h2><p>Review every failed finding with the resource owner and apply changes through your normal Azure change process.</p>
+<h2>Disclaimer</h2><p class="disclaimer">This read-only tool provides a limited project-specific configuration assessment. It is not Microsoft's official Secure Score, a complete security audit, or a guarantee that resources are secure.</p>
+</body></html>

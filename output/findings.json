@@ -1,0 +1,125 @@
+{
+  "assessment": {
+    "subscription_id": "1cb919c9-cb7a-461a-9263-edf1fedcbd60",
+    "subscription_name": "Azure for Students",
+    "resource_group": "rg-security-demo",
+    "security_score": 40,
+    "risk_level": "HIGH"
+  },
+  "summary": {
+    "resources_scanned": 3,
+    "critical": 2,
+    "high": 3,
+    "medium": 2,
+    "low": 0,
+    "info": 1,
+    "passed": 2,
+    "failed": 6
+  },
+  "findings": [
+    {
+      "check_id": "STG-001",
+      "service": "Storage",
+      "resource_name": "cspmdemo1",
+      "resource_group": "rg-security-demo",
+      "severity": "HIGH",
+      "title": "Blob public access is permitted",
+      "description": "Account-level anonymous blob access can expose data publicly.",
+      "current_value": "True",
+      "recommended_value": "False",
+      "recommendation": "Disable account-level blob public access unless anonymous access is explicitly required.",
+      "status": "FAIL"
+    },
+    {
+      "check_id": "STG-002",
+      "service": "Storage",
+      "resource_name": "cspmdemo1",
+      "resource_group": "rg-security-demo",
+      "severity": "HIGH",
+      "title": "Modern TLS version enforced",
+      "description": "Legacy TLS versions provide weaker transport security.",
+      "current_value": "TLS1_2",
+      "recommended_value": "TLS1_2 or newer",
+      "recommendation": "Require TLS 1.2 or newer for storage traffic.",
+      "status": "PASS"
+    },
+    {
+      "check_id": "STG-003",
+      "service": "Storage",
+      "resource_name": "cspmdemo1",
+      "resource_group": "rg-security-demo",
+      "severity": "HIGH",
+      "title": "Secure transfer is not enforced",
+      "description": "HTTP traffic should not be accepted for storage operations.",
+      "current_value": "False",
+      "recommended_value": "True",
+      "recommendation": "Require HTTPS-only traffic for the storage account.",
+      "status": "FAIL"
+    },
+    {
+      "check_id": "STG-004",
+      "service": "Storage",
+      "resource_name": "cspmdemo1",
+      "resource_group": "rg-security-demo",
+      "severity": "INFO",
+      "title": "Storage account has public network access enabled",
+      "description": "Public network access is not automatically a vulnerability and should match business needs.",
+      "current_value": "Enabled",
+      "recommended_value": "Review according to business requirements",
+      "recommendation": "Review public network access according to business requirements.",
+      "status": "PASS"
+    },
+    {
+      "check_id": "KV-001",
+      "service": "Key Vault",
+      "resource_name": "kv-cspm-demo1",
+      "resource_group": "rg-security-demo",
+      "severity": "MEDIUM",
+      "title": "Key Vault public network access is enabled",
+      "description": "Public access should be considered carefully for sensitive vault workloads.",
+      "current_value": "Enabled",
+      "recommended_value": "Restricted access, firewall rules, or private endpoint",
+      "recommendation": "Review whether public access is required and prefer firewall restrictions or private endpoints for sensitive workloads.",
+      "status": "FAIL"
+    },
+    {
+      "check_id": "KV-002",
+      "service": "Key Vault",
+      "resource_name": "kv-cspm-demo1",
+      "resource_group": "rg-security-demo",
+      "severity": "MEDIUM",
+      "title": "Purge protection is disabled",
+      "description": "Without purge protection, deleted important vault data may be harder to recover.",
+      "current_value": "False",
+      "recommended_value": "True",
+      "recommendation": "Enable purge protection for important production vaults to reduce the risk of irreversible deletion.",
+      "status": "FAIL"
+    },
+    {
+      "check_id": "NSG-001",
+      "service": "Network Security Group",
+      "resource_name": "nsg-cspm-insecure",
+      "resource_group": "rg-security-demo",
+      "severity": "CRITICAL",
+      "title": "SSH exposed to the Internet",
+      "description": "NSG nsg-cspm-insecure, rule Allow-SSH-Internet, priority 100; protocol TCP, source *, destination port 22.",
+      "current_value": "22",
+      "recommended_value": "Trusted administration network",
+      "recommendation": "Restrict SSH to trusted source addresses, VPN connectivity, or Azure Bastion.",
+      "status": "FAIL"
+    },
+    {
+      "check_id": "NSG-002",
+      "service": "Network Security Group",
+      "resource_name": "nsg-cspm-insecure",
+      "resource_group": "rg-security-demo",
+      "severity": "CRITICAL",
+      "title": "RDP exposed to the Internet",
+      "description": "NSG nsg-cspm-insecure, rule Allow-RDP-Internet, priority 110; protocol TCP, source *, destination port 3389.",
+      "current_value": "3389",
+      "recommended_value": "Trusted administration network",
+      "recommendation": "Restrict RDP access to approved administration networks or use Azure Bastion.",
+      "status": "FAIL"
+    }
+  ]
+}
